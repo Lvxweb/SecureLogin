@@ -20,4 +20,38 @@ if (isset($_POST['username'], $_POST['email'], $_POST['p'])) {
         // esegue un processo di crittografia..
         $error_msg .= '<p class="error">Password non valida.</p>';
     }
+ $prep_stmt = "SELECT id FROM members WHERE email = ? LIMIT 1";
+    $stmt = $mysqli->prepare($prep_stmt);
+    
+    if ($stmt) {
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $stmt->store_result();
+        
+        if ($stmt->num_rows == 1) {
+            // In caso di duplicato (user già esistente)
+            $error_msg .= '<p class="error">Un username come il tuo è già presente nel nostro database.</p>';
+        }
+    } else {
+        $error_msg .= '<p class="error">Database error</p>';
+    }
+    if (empty($error_msg)) {
+        // Crea una sessione crittografata per utente
+        $random_salt = hash('sha512', uniqid(openssl_random_pseudo_bytes(16), TRUE));
 
+        // Crea una password crittografata
+        $password = hash('sha512', $password . $random_salt);
+
+        // INSERISCE I DATI NEL DATABASE
+        if ($insert_stmt = $mysqli->prepare("INSERT INTO members (username, email, password, salt) VALUES (?, ?, ?, ?)")) {
+            $insert_stmt->bind_param('ssss', $username, $email, $password, $random_salt);
+            // Execute the prepared query.
+            if (! $insert_stmt->execute()) {
+                header('Location: ../error.php?err=Registration failure: INSERT');
+                exit();
+            }
+        }
+        header('Location: ./register_success.php');
+        exit();
+    }
+}
